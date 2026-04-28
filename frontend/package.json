@@ -1,9 +1,0 @@
-{
-  "name": "betteryoutube-frontend",
-  "version": "1.0.0",
-  "description": "BetterYouTube frontend client",
-  "private": true,
-  "scripts": {
-    "dev": "echo 'Served by Flask backend — run python backend/app.py from project root'"
-  }
-}

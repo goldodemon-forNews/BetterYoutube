@@ -1,70 +1,54 @@
 # BetterYouTube
 
-BetterYouTube is a streamlined web interface that leverages YouTube's infrastructure to provide high-performance video discovery alongside integrated ad-shielding, granular resolution scaling, and toggleable AI-driven frame interpolation for an optimized, high-fidelity viewing experience.
+BetterYouTube is a standalone desktop application that leverages YouTube's infrastructure to provide high-performance video discovery alongside integrated ad-shielding, granular resolution scaling, and toggleable AI-driven frame interpolation for an optimized, high-fidelity viewing experience.
+
+**No API keys. No setup. Just download and run.**
 
 ## Features
 
 - **Video Discovery** — Search and browse YouTube videos with a clean, distraction-free interface
-- **Ad Shielding** — Integrated ad-blocking for uninterrupted viewing
-- **Resolution Scaling** — Granular control over video quality and resolution
-- **AI Frame Interpolation** — Toggleable AI-driven frame interpolation for smoother playback
-- **Clean UI** — Minimalist, responsive interface focused on content
+- **Ad Shielding** — Integrated ad-filtering for uninterrupted browsing
+- **Resolution Scaling** — Granular control over default video resolution
+- **AI Frame Interpolation** — Toggleable interpolation mode (2x / 4x) for smoother playback
+- **Custom Dark GUI** — Modern CustomTkinter interface with a dark theme
+- **Standalone .exe** — Packaged with PyInstaller, no Python install needed
+
+## Screenshots
+
+*Coming soon*
 
 ## Tech Stack
 
-- **Backend:** Python (Flask) — API proxy, configuration management, and server-side logic
-- **Frontend:** JavaScript (Vanilla JS) — Lightweight, fast client-side application
+- **GUI:** Python + [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) — modern, dark-themed desktop UI
+- **YouTube Integration:** [yt-dlp](https://github.com/yt-dlp/yt-dlp) — no API key required
+- **Packaging:** [PyInstaller](https://pyinstaller.org/) — single-file .exe
 
 ## Project Structure
 
 ```
 BetterYoutube/
-├── backend/
-│   ├── app.py              # Flask application entry point
-│   ├── config.py           # Configuration management
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── search.py       # Video search endpoints
-│   │   ├── video.py        # Video playback endpoints
-│   │   └── settings.py     # User settings endpoints
-│   └── services/
-│       ├── __init__.py
-│       ├── youtube.py       # YouTube API integration
-│       ├── ad_shield.py     # Ad-shielding logic
-│       └── interpolation.py # Frame interpolation service
-├── frontend/
-│   ├── public/
-│   │   └── index.html       # Main HTML entry point
-│   ├── src/
-│   │   ├── components/      # UI components
-│   │   │   ├── player.js    # Video player component
-│   │   │   ├── search.js    # Search bar component
-│   │   │   └── settings.js  # Settings panel component
-│   │   ├── styles/
-│   │   │   └── main.css     # Application styles
-│   │   ├── utils/
-│   │   │   ├── api.js       # Backend API client
-│   │   │   └── helpers.js   # Utility functions
-│   │   └── app.js           # Main application script
-│   └── package.json         # Frontend dependencies
-├── tests/
-│   ├── test_search.py       # Search endpoint tests
-│   └── test_video.py        # Video endpoint tests
-├── requirements.txt         # Python dependencies
+├── main.py                  # Application entry point
+├── build.py                 # PyInstaller build script
+├── src/
+│   ├── app.py               # Main GUI application
+│   ├── youtube_service.py   # YouTube search/video (yt-dlp)
+│   ├── ad_shield.py         # Ad-shielding filter
+│   └── settings.py          # Persistent user settings
+├── assets/                  # Icons, images (future)
+├── requirements.txt
 ├── .gitignore
-├── .env.example             # Environment variable template
 └── LICENSE
 ```
 
 ## Getting Started
 
-### Prerequisites
+### Option 1: Download the .exe (Windows)
 
-- Python 3.10+
-- Node.js 18+ (for frontend tooling)
-- A YouTube Data API key ([Get one here](https://console.cloud.google.com/apis/credentials))
+1. Go to the [Releases](https://github.com/goldodemon-forNews/BetterYoutube/releases) page
+2. Download `BetterYouTube.exe`
+3. Run it — that's it!
 
-### Installation
+### Option 2: Run from Source
 
 1. **Clone the repository:**
    ```bash
@@ -72,44 +56,35 @@ BetterYoutube/
    cd BetterYoutube
    ```
 
-2. **Set up the backend:**
+2. **Install dependencies:**
    ```bash
    python -m venv venv
    source venv/bin/activate   # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
-3. **Configure environment variables:**
+3. **Run the app:**
    ```bash
-   cp .env.example .env
-   # Edit .env and add your YouTube Data API key
+   python main.py
    ```
 
-4. **Install frontend dependencies:**
-   ```bash
-   cd frontend
-   npm install
-   cd ..
-   ```
+### Build the .exe Yourself
 
-5. **Run the application:**
-   ```bash
-   python backend/app.py
-   ```
+```bash
+python build.py
+```
 
-6. **Open your browser:**
-   Navigate to `http://localhost:5000`
+The executable will be in the `dist/` folder.
 
-## Configuration
+## Settings
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `YOUTUBE_API_KEY` | YouTube Data API v3 key | *required* |
-| `FLASK_PORT` | Server port | `5000` |
-| `FLASK_DEBUG` | Enable debug mode | `false` |
-| `AD_SHIELD_ENABLED` | Enable ad-shielding | `true` |
-| `INTERPOLATION_ENABLED` | Enable AI frame interpolation | `false` |
-| `DEFAULT_RESOLUTION` | Default video resolution | `1080p` |
+Settings are saved to `~/.betteryoutube/settings.json` and persist across sessions.
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Ad Shield | Filter out promoted/sponsored results | Enabled |
+| AI Interpolation | Frame interpolation mode (off/2x/4x) | Off |
+| Default Resolution | Preferred video quality | 1080p |
 
 ## Contributing
 
