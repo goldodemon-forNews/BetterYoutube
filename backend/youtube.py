@@ -2,6 +2,8 @@
 
 import yt_dlp
 
+from backend.ad_blocker import filter_search_results, filter_video_formats, detect_sponsor_segments
+
 _SEARCH_OPTS = {
     "quiet": True,
     "no_warnings": True,
@@ -15,15 +17,14 @@ _VIDEO_OPTS = {
     "skip_download": True,
 }
 
-AD_PATTERNS = ["ad_tag", "promoted", "sponsored", "#ad", "advertisement"]
-
 
 def search_videos(query, max_results=20):
     try:
         with yt_dlp.YoutubeDL(_SEARCH_OPTS) as ydl:
             data = ydl.extract_info(f"ytsearch{max_results}:{query}", download=False)
             entries = data.get("entries", []) if data else []
-            return {"items": [_fmt_entry(e) for e in entries if e and not _is_ad(e)]}
+            items = [_fmt_entry(e) for e in entries if e]
+            return {"items": filter_search_results(items)}
     except Exception as e:
         return {"items": [], "error": str(e)}
 
@@ -35,7 +36,8 @@ def get_trending():
                 "https://www.youtube.com/feed/trending", download=False
             )
             entries = (data.get("entries", []) if data else [])[:24]
-            return {"items": [_fmt_entry(e) for e in entries if e]}
+            items = [_fmt_entry(e) for e in entries if e]
+            return {"items": filter_search_results(items)}
     except Exception as e:
         return {"items": [], "error": str(e)}
 
@@ -49,7 +51,7 @@ def get_video_info(video_id):
             if not info:
                 return None
 
-            formats = info.get("formats", [])
+            formats = filter_video_formats(info.get("formats", []))
             resolutions = sorted(
                 {f["height"] for f in formats if f.get("height") and f.get("vcodec") != "none"}
             )
@@ -75,6 +77,7 @@ def get_video_info(video_id):
                 "thumbnail": info.get("thumbnail", ""),
                 "resolutions": resolutions,
                 "chapters": chapters,
+                "sponsor_segments": detect_sponsor_segments(info.get("description", "")),
             }
     except Exception:
         return None
@@ -115,7 +118,3 @@ def _fmt_entry(entry):
         "thumbnail": thumb,
     }
 
-
-def _is_ad(entry):
-    text = f"{entry.get('title', '')} {entry.get('uploader', '')}".lower()
-    return any(p in text for p in AD_PATTERNS)

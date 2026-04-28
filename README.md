@@ -43,7 +43,7 @@ A **power-user YouTube workstation** — a local web application with an advance
 - **Picture-in-Picture** — float the video over other windows
 - **Mini player bar** — persistent playback controls
 - **Chapter markers** — visual markers on the progress bar
-- **Ad filtering** — filters promoted/sponsored content from search results
+- **Built-in ad blocker** — filters ads from results, strips ad formats, detects sponsor segments
 
 ## Tech Stack
 
@@ -77,7 +77,10 @@ python build.py
 
 ### Ad Blocking
 
-For full ad blocking during video playback, install [PIE Adblock](https://chromewebstore.google.com/detail/pie-adblock-a-powerful-fr/jpkfgepcmmchgfbjblnodjhldacghenp) in your browser alongside BetterYouTube.
+Ad blocking is **built-in** — no browser extensions needed. BetterYouTube automatically:
+- Filters promoted/sponsored content from search results
+- Removes ad-related video format entries
+- Detects sponsor segments in video descriptions and flags them
 
 ## Keyboard Shortcuts
 
