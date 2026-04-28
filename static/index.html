@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BetterYouTube</title>
+  <link rel="stylesheet" href="/static/css/main.css" />
+  <link rel="stylesheet" href="/static/css/player.css" />
+  <link rel="stylesheet" href="/static/css/filters.css" />
+</head>
+<body>
+  <!-- ── Header ────────────────────────────────────────────────── -->
+  <header id="header">
+    <div class="header-left">
+      <h1 class="logo" id="logo">Better<span>YouTube</span></h1>
+    </div>
+    <div class="header-center">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search videos..." autocomplete="off" />
+        <button id="search-btn" aria-label="Search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16" y2="16"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="header-right">
+      <button id="shortcuts-btn" class="icon-btn" title="Keyboard shortcuts (?)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Keyboard Shortcuts Modal ──────────────────────────────── -->
+  <div id="shortcuts-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content shortcuts-content">
+      <div class="modal-header"><h2>Keyboard Shortcuts</h2><button class="modal-close">&times;</button></div>
+      <div class="shortcuts-grid">
+        <div class="shortcut"><kbd>Space</kbd> Play / Pause</div>
+        <div class="shortcut"><kbd>←</kbd><kbd>→</kbd> Seek ±5s</div>
+        <div class="shortcut"><kbd>J</kbd><kbd>L</kbd> Seek ±10s</div>
+        <div class="shortcut"><kbd>Shift+←</kbd><kbd>→</kbd> Frame step</div>
+        <div class="shortcut"><kbd>↑</kbd><kbd>↓</kbd> Volume ±5%</div>
+        <div class="shortcut"><kbd>M</kbd> Mute / Unmute</div>
+        <div class="shortcut"><kbd>F</kbd> Fullscreen</div>
+        <div class="shortcut"><kbd>P</kbd> Picture-in-Picture</div>
+        <div class="shortcut"><kbd>&lt;</kbd><kbd>&gt;</kbd> Speed ±0.25x</div>
+        <div class="shortcut"><kbd>Shift+&lt;</kbd><kbd>&gt;</kbd> Speed ±0.05x</div>
+        <div class="shortcut"><kbd>S</kbd> Screenshot</div>
+        <div class="shortcut"><kbd>A</kbd> Set A-B loop point</div>
+        <div class="shortcut"><kbd>Z</kbd> Toggle Zen/Focus mode</div>
+        <div class="shortcut"><kbd>B</kbd> Toggle Ambilight</div>
+        <div class="shortcut"><kbd>?</kbd> Show this help</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Player Section ────────────────────────────────────────── -->
+  <section id="player-section" class="hidden">
+    <div class="player-area">
+      <!-- Ambilight canvas -->
+      <canvas id="ambilight-canvas" class="ambilight-canvas"></canvas>
+
+      <div class="player-wrapper" id="player-wrapper">
+        <video id="video-player" crossorigin="anonymous"></video>
+
+        <!-- Controls overlay -->
+        <div class="controls-overlay" id="controls-overlay">
+          <!-- Progress bar -->
+          <div class="progress-container" id="progress-container">
+            <div class="progress-bar">
+              <div class="progress-buffered" id="progress-buffered"></div>
+              <div class="progress-played" id="progress-played"></div>
+              <div class="progress-ab-region" id="progress-ab-region"></div>
+              <div class="progress-handle" id="progress-handle"></div>
+            </div>
+            <div class="chapter-markers" id="chapter-markers"></div>
+            <div class="progress-tooltip" id="progress-tooltip">0:00</div>
+          </div>
+
+          <div class="controls-bar">
+            <div class="controls-left">
+              <button id="play-btn" class="ctrl-btn" title="Play"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button>
+              <button id="prev-frame-btn" class="ctrl-btn" title="Previous frame"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="4" height="16"/><polygon points="20,4 10,12 20,20"/></svg></button>
+              <button id="next-frame-btn" class="ctrl-btn" title="Next frame"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="4,4 14,12 4,20"/><rect x="16" y="4" width="4" height="16"/></svg></button>
+              <div class="volume-group">
+                <button id="mute-btn" class="ctrl-btn" title="Mute"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11,5 6,9 2,9 2,15 6,15 11,19" fill="currentColor"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg></button>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="1" />
+              </div>
+              <span class="time-display"><span id="time-current">0:00</span> / <span id="time-duration">0:00</span></span>
+            </div>
+            <div class="controls-center">
+              <div class="speed-control">
+                <button id="speed-down" class="ctrl-btn mini" title="Slower">−</button>
+                <span id="speed-display" class="speed-label" title="Click to reset">1.00x</span>
+                <button id="speed-up" class="ctrl-btn mini" title="Faster">+</button>
+              </div>
+            </div>
+            <div class="controls-right">
+              <button id="ab-loop-btn" class="ctrl-btn" title="A-B Loop"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg></button>
+              <button id="bookmark-btn" class="ctrl-btn" title="Bookmark timestamp"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg></button>
+              <button id="screenshot-btn" class="ctrl-btn" title="Screenshot (S)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="3"/></svg></button>
+              <button id="gif-btn" class="ctrl-btn" title="Create GIF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18"/><text x="12" y="15" font-size="8" fill="currentColor" text-anchor="middle" font-weight="bold">GIF</text></svg></button>
+              <button id="filters-btn" class="ctrl-btn" title="Visual filters"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></button>
+              <button id="audio-btn" class="ctrl-btn" title="Audio controls"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button>
+              <button id="ambilight-btn" class="ctrl-btn" title="Ambilight (B)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+              <button id="zen-btn" class="ctrl-btn" title="Focus/Zen mode (Z)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+              <button id="pip-btn" class="ctrl-btn" title="Picture-in-Picture (P)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="12" y="9" width="8" height="6" rx="1" fill="currentColor" opacity="0.4"/></svg></button>
+              <button id="fullscreen-btn" class="ctrl-btn" title="Fullscreen (F)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Video Info -->
+      <div class="video-info" id="video-info">
+        <h2 id="video-title"></h2>
+        <div class="video-meta">
+          <span id="video-channel" class="channel-link"></span>
+          <span id="video-views"></span>
+          <span id="video-likes"></span>
+          <span id="video-date"></span>
+        </div>
+        <div class="video-description-toggle">
+          <button id="desc-toggle">Show more</button>
+        </div>
+        <p id="video-description" class="collapsed"></p>
+        <!-- Bookmarks -->
+        <div id="bookmarks-section" class="bookmarks-section hidden">
+          <h3>Bookmarks</h3>
+          <div id="bookmarks-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters Panel (slide-out) -->
+    <div id="filters-panel" class="side-panel hidden">
+      <h3>Visual Filters</h3>
+      <div class="filter-group">
+        <label><input type="radio" name="vfilter" value="none" checked /> None</label>
+        <label><input type="radio" name="vfilter" value="night-vision" /> Night Vision</label>
+        <label><input type="radio" name="vfilter" value="saturate" /> Vivid Colors</label>
+        <label><input type="radio" name="vfilter" value="grayscale" /> Grayscale</label>
+        <label><input type="radio" name="vfilter" value="sepia" /> Sepia / Vintage</label>
+        <label><input type="radio" name="vfilter" value="warm" /> Warm / Blue Light Filter</label>
+      </div>
+      <h4>Custom Adjustments</h4>
+      <div class="slider-group">
+        <label>Brightness <span id="brightness-val">100%</span></label>
+        <input type="range" id="brightness-slider" min="50" max="200" value="100" />
+      </div>
+      <div class="slider-group">
+        <label>Contrast <span id="contrast-val">100%</span></label>
+        <input type="range" id="contrast-slider" min="50" max="200" value="100" />
+      </div>
+      <div class="slider-group">
+        <label>Saturation <span id="saturation-val">100%</span></label>
+        <input type="range" id="saturation-slider" min="0" max="300" value="100" />
+      </div>
+      <button id="filter-reset" class="panel-btn">Reset All</button>
+    </div>
+
+    <!-- Audio Panel (slide-out) -->
+    <div id="audio-panel" class="side-panel hidden">
+      <h3>Audio Engine</h3>
+      <div class="toggle-row">
+        <label>Volume Normalization</label>
+        <label class="switch"><input type="checkbox" id="normalize-toggle" /><span class="slider-toggle"></span></label>
+      </div>
+      <div class="toggle-row">
+        <label>Bass Boost</label>
+        <label class="switch"><input type="checkbox" id="bass-toggle" /><span class="slider-toggle"></span></label>
+      </div>
+      <h4>Equalizer Preset</h4>
+      <div class="eq-presets">
+        <button class="eq-btn active" data-preset="flat">Flat</button>
+        <button class="eq-btn" data-preset="podcast">Podcast</button>
+        <button class="eq-btn" data-preset="music">Music</button>
+        <button class="eq-btn" data-preset="bass-heavy">Bass Heavy</button>
+        <button class="eq-btn" data-preset="treble">Treble</button>
+      </div>
+      <h4>EQ Bands</h4>
+      <div class="eq-sliders" id="eq-sliders"></div>
+    </div>
+  </section>
+
+  <!-- ── Video Grid (Home/Search) ──────────────────────────────── -->
+  <main id="grid-section">
+    <div id="status-msg" class="status-msg">Loading trending videos...</div>
+    <div id="video-grid" class="video-grid"></div>
+  </main>
+
+  <!-- ── Mini Player ───────────────────────────────────────────── -->
+  <div id="mini-player" class="mini-player hidden">
+    <div class="mini-thumb" id="mini-thumb"></div>
+    <div class="mini-info">
+      <span id="mini-title"></span>
+      <span id="mini-channel"></span>
+    </div>
+    <button id="mini-play" class="ctrl-btn">▶</button>
+    <button id="mini-close" class="ctrl-btn">&times;</button>
+  </div>
+
+  <!-- ── GIF Creator Modal ─────────────────────────────────────── -->
+  <div id="gif-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content gif-content">
+      <div class="modal-header"><h2>Create GIF</h2><button class="modal-close">&times;</button></div>
+      <div class="gif-controls">
+        <label>Start: <input type="number" id="gif-start" min="0" step="0.1" value="0" /> s</label>
+        <label>Duration: <input type="number" id="gif-duration" min="0.5" max="15" step="0.5" value="3" /> s</label>
+        <label>FPS: <input type="number" id="gif-fps" min="5" max="30" step="1" value="10" /></label>
+        <button id="gif-capture" class="panel-btn">Capture Frames</button>
+      </div>
+      <div id="gif-preview" class="gif-preview"></div>
+      <button id="gif-download" class="panel-btn hidden">Download GIF</button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/js/modules/store.js"></script>
+  <script src="/static/js/modules/api.js"></script>
+  <script src="/static/js/modules/filters.js"></script>
+  <script src="/static/js/modules/audio-engine.js"></script>
+  <script src="/static/js/modules/player.js"></script>
+  <script src="/static/js/modules/capture.js"></script>
+  <script src="/static/js/modules/grid.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

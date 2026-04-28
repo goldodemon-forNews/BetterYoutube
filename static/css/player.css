@@ -1,0 +1,62 @@
+/* ── Player Layout ───────────────────────────────────────────── */
+#player-section{max-width:1100px;margin:0 auto;padding:20px}
+#player-section.hidden{display:none}
+.player-area{position:relative}
+
+.player-wrapper{position:relative;background:#000;border-radius:var(--radius);overflow:hidden;aspect-ratio:16/9;cursor:pointer}
+.player-wrapper:fullscreen{border-radius:0}
+
+#video-player{width:100%;height:100%;display:block;object-fit:contain}
+
+/* ── Controls Overlay ───────────────────────────────────────── */
+.controls-overlay{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.85));padding:0 12px 8px;opacity:0;transition:opacity .25s;pointer-events:none}
+.player-wrapper:hover .controls-overlay,
+.player-wrapper.show-controls .controls-overlay{opacity:1;pointer-events:auto}
+
+/* ── Progress Bar ───────────────────────────────────────────── */
+.progress-container{position:relative;height:20px;display:flex;align-items:center;cursor:pointer;margin-bottom:4px}
+.progress-bar{position:relative;width:100%;height:4px;background:rgba(255,255,255,.2);border-radius:2px;transition:height .15s}
+.progress-container:hover .progress-bar{height:6px}
+.progress-buffered{position:absolute;height:100%;background:rgba(255,255,255,.25);border-radius:2px}
+.progress-played{position:absolute;height:100%;background:var(--accent);border-radius:2px}
+.progress-ab-region{position:absolute;height:100%;background:rgba(255,200,0,.3);border-radius:2px;display:none}
+.progress-handle{position:absolute;width:14px;height:14px;background:var(--accent);border-radius:50%;top:50%;transform:translate(-50%,-50%);opacity:0;transition:opacity .15s}
+.progress-container:hover .progress-handle{opacity:1}
+.progress-tooltip{position:absolute;bottom:22px;background:rgba(0,0,0,.9);color:#fff;padding:2px 8px;border-radius:4px;font-size:.75rem;pointer-events:none;opacity:0;transition:opacity .15s;transform:translateX(-50%);white-space:nowrap}
+.progress-container:hover .progress-tooltip{opacity:1}
+
+.chapter-markers{position:absolute;width:100%;height:100%;pointer-events:none}
+.chapter-marker{position:absolute;width:2px;height:100%;background:rgba(255,255,255,.5);top:0}
+
+/* ── Controls Bar ───────────────────────────────────────────── */
+.controls-bar{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.controls-left,.controls-right{display:flex;align-items:center;gap:4px}
+.controls-center{display:flex;align-items:center}
+
+.ctrl-btn{background:none;border:none;color:#fff;cursor:pointer;padding:6px;border-radius:4px;transition:background .15s;display:flex;align-items:center;justify-content:center}
+.ctrl-btn:hover{background:rgba(255,255,255,.15)}
+.ctrl-btn.active{color:var(--accent)}
+.ctrl-btn.mini{font-size:.85rem;padding:3px 6px;font-weight:700}
+
+.volume-group{display:flex;align-items:center;gap:2px}
+#volume-slider{width:70px;accent-color:var(--accent)}
+
+.time-display{font-size:.78rem;color:rgba(255,255,255,.8);white-space:nowrap;margin-left:6px}
+
+.speed-control{display:flex;align-items:center;gap:4px}
+.speed-label{font-size:.8rem;font-weight:600;color:var(--accent);cursor:pointer;min-width:40px;text-align:center}
+
+/* ── Video Info ─────────────────────────────────────────────── */
+.video-info{padding:16px 0}
+#video-title{font-size:1.15rem;font-weight:700;line-height:1.4}
+.video-meta{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px;font-size:.85rem;color:var(--dim)}
+.channel-link{color:var(--text);font-weight:600}
+.video-description-toggle{margin-top:8px}
+#desc-toggle{background:none;border:none;color:var(--dim);cursor:pointer;font-size:.85rem}
+#desc-toggle:hover{color:var(--text)}
+#video-description{font-size:.88rem;color:var(--dim);line-height:1.5;white-space:pre-line;margin-top:6px;max-height:300px;overflow-y:auto}
+#video-description.collapsed{max-height:60px;overflow:hidden}
+
+/* ── Ambilight ──────────────────────────────────────────────── */
+.ambilight-canvas{position:absolute;inset:-40px;z-index:-1;filter:blur(60px) saturate(1.8);opacity:0;transition:opacity .5s;pointer-events:none}
+.ambilight-active .ambilight-canvas{opacity:.6}

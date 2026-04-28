@@ -2,7 +2,6 @@
 
 import PyInstaller.__main__
 import os
-import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -11,11 +10,12 @@ PyInstaller.__main__.run([
     "--name=BetterYouTube",
     "--onefile",
     "--windowed",
-    "--add-data", f"{os.path.join(ROOT, 'src')}:src",
-    "--hidden-import=customtkinter",
+    "--add-data", os.path.join(ROOT, "static") + os.pathsep + "static",
+    "--add-data", os.path.join(ROOT, "backend") + os.pathsep + "backend",
+    "--hidden-import=flask",
+    "--hidden-import=flask_cors",
     "--hidden-import=yt_dlp",
-    "--hidden-import=PIL",
-    "--collect-all=customtkinter",
+    "--collect-all=yt_dlp",
     "--noconfirm",
     "--clean",
 ])
