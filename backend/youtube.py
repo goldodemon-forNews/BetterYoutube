@@ -30,6 +30,8 @@ def search_videos(query, max_results=20):
 
 
 def get_trending():
+    """Fetch trending/popular videos with multiple fallback strategies."""
+    # Strategy 1: YouTube trending page
     try:
         with yt_dlp.YoutubeDL(_SEARCH_OPTS) as ydl:
             data = ydl.extract_info(
@@ -37,9 +39,40 @@ def get_trending():
             )
             entries = (data.get("entries", []) if data else [])[:24]
             items = [_fmt_entry(e) for e in entries if e]
-            return {"items": filter_search_results(items)}
-    except Exception as e:
-        return {"items": [], "error": str(e)}
+            if items:
+                return {"items": filter_search_results(items)}
+    except Exception:
+        pass
+
+    # Strategy 2: YouTube popular/music charts
+    try:
+        with yt_dlp.YoutubeDL(_SEARCH_OPTS) as ydl:
+            data = ydl.extract_info(
+                "https://www.youtube.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf",
+                download=False,
+            )
+            entries = (data.get("entries", []) if data else [])[:24]
+            items = [_fmt_entry(e) for e in entries if e]
+            if items:
+                return {"items": filter_search_results(items)}
+    except Exception:
+        pass
+
+    # Strategy 3: Fall back to searching popular topics
+    fallback_queries = [
+        "trending today",
+        "popular videos 2026",
+        "most viewed this week",
+    ]
+    for query in fallback_queries:
+        try:
+            result = search_videos(query, max_results=24)
+            if result.get("items"):
+                return result
+        except Exception:
+            continue
+
+    return {"items": []}
 
 
 def get_video_info(video_id):

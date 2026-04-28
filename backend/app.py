@@ -1,17 +1,32 @@
 """BetterYouTube — Flask backend serving the rich web frontend."""
 
 import os
-import webbrowser
+import sys
 import threading
+import socket
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from backend.youtube import search_videos, get_trending, get_video_info, get_stream_url
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+def _get_root_dir():
+    """Resolve root dir for both normal and PyInstaller-bundled execution."""
+    if getattr(sys, "frozen", False):
+        return sys._MEIPASS
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def _find_free_port():
+    """Find a free port so we don't conflict with anything."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+ROOT_DIR = _get_root_dir()
 STATIC_DIR = os.path.join(ROOT_DIR, "static")
-PORT = int(os.getenv("BETTERYOUTUBE_PORT", "5000"))
 
 
 def create_app():
@@ -58,10 +73,23 @@ def create_app():
 
 
 def run():
+    import webview
+
+    port = _find_free_port()
     app = create_app()
 
-    def open_browser():
-        webbrowser.open(f"http://localhost:{PORT}")
+    def start_server():
+        app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
 
-    threading.Timer(1.0, open_browser).start()
-    app.run(host="127.0.0.1", port=PORT, debug=False)
+    server_thread = threading.Thread(target=start_server, daemon=True)
+    server_thread.start()
+
+    # Create a native desktop window
+    webview.create_window(
+        "BetterYouTube",
+        f"http://127.0.0.1:{port}",
+        width=1200,
+        height=800,
+        min_size=(800, 500),
+    )
+    webview.start()

@@ -15,7 +15,9 @@ PyInstaller.__main__.run([
     "--hidden-import=flask",
     "--hidden-import=flask_cors",
     "--hidden-import=yt_dlp",
+    "--hidden-import=webview",
     "--collect-all=yt_dlp",
+    "--collect-all=webview",
     "--noconfirm",
     "--clean",
 ])

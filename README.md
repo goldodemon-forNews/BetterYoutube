@@ -47,6 +47,7 @@ A **power-user YouTube workstation** — a local web application with an advance
 
 ## Tech Stack
 
+- **Desktop Window:** [pywebview](https://pywebview.flowrl.com/) — native app window (no browser needed)
 - **Backend:** Python + Flask + [yt-dlp](https://github.com/yt-dlp/yt-dlp) (no API key needed)
 - **Frontend:** Vanilla JS with Web Audio API, Canvas API, CSS Filters
 - **Packaging:** [PyInstaller](https://pyinstaller.org/) for standalone .exe
@@ -57,7 +58,7 @@ A **power-user YouTube workstation** — a local web application with an advance
 
 1. Go to [Releases](https://github.com/goldodemon-forNews/BetterYoutube/releases)
 2. Download `BetterYouTube.exe`
-3. Run it — your browser opens automatically
+3. Run it — opens as a native desktop app window
 
 ### Option 2: Run from Source
 
