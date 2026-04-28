@@ -147,19 +147,24 @@ class SettingsWindow(ctk.CTkToplevel):
         if self.settings.get("ad_shield_enabled"):
             self.ad_switch.select()
 
-        # Interpolation toggle
+        # Interpolation toggle (coming soon)
         interp_frame = ctk.CTkFrame(self, fg_color=BG_SECONDARY, corner_radius=8)
         interp_frame.pack(fill="x", padx=20, pady=4)
-        ctk.CTkLabel(interp_frame, text="AI Frame Interpolation", font=ctk.CTkFont(size=14)).pack(
-            side="left", padx=12, pady=12
+        interp_label_frame = ctk.CTkFrame(interp_frame, fg_color="transparent")
+        interp_label_frame.pack(side="left", padx=12, pady=12)
+        ctk.CTkLabel(interp_label_frame, text="AI Frame Interpolation", font=ctk.CTkFont(size=14)).pack(
+            anchor="w"
         )
+        ctk.CTkLabel(
+            interp_label_frame, text="Coming Soon",
+            font=ctk.CTkFont(size=11, slant="italic"),
+            text_color="#ff8800"
+        ).pack(anchor="w")
         self.interp_switch = ctk.CTkSwitch(
             interp_frame, text="", onvalue=True, offvalue=False,
-            command=self._on_interp_toggle
+            command=self._on_interp_toggle, state="disabled"
         )
         self.interp_switch.pack(side="right", padx=12, pady=12)
-        if self.settings.get("interpolation_enabled"):
-            self.interp_switch.select()
 
         # Resolution selector
         res_frame = ctk.CTkFrame(self, fg_color=BG_SECONDARY, corner_radius=8)
