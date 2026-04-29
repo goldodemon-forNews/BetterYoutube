@@ -35,17 +35,25 @@ const Player = {
 
     document.getElementById("player-section").classList.remove("hidden");
     document.getElementById("grid-section").style.display = "none";
+    document.getElementById("shorts-section").classList.add("hidden");
+    document.getElementById("channel-section").classList.add("hidden");
 
-    // Fetch stream URL
+    // Show loading
+    document.getElementById("player-loading").classList.remove("hidden");
+
+    // Use proxy URL for playback (solves CORS issues)
     try {
-      const stream = await API.streamUrl(videoId, 1080);
-      if (!stream || !stream.url) {
-        // Fallback: open in browser
-        window.open(`https://www.youtube.com/watch?v=${videoId}`, "_blank");
-        return;
-      }
-      this._video.src = stream.url;
+      const proxyUrl = API.proxyUrl(videoId, 720);
+      this._video.src = proxyUrl;
       this._video.load();
+
+      this._video.addEventListener("canplay", () => {
+        document.getElementById("player-loading").classList.add("hidden");
+      }, { once: true });
+
+      this._video.addEventListener("error", () => {
+        document.getElementById("player-loading").classList.add("hidden");
+      }, { once: true });
 
       // Auto-resume
       const saved = Store.getTimestamp(videoId);
@@ -62,8 +70,7 @@ const Player = {
 
       this._video.play().catch(() => {});
     } catch {
-      window.open(`https://www.youtube.com/watch?v=${videoId}`, "_blank");
-      return;
+      document.getElementById("player-loading").classList.add("hidden");
     }
 
     // Fetch video info
@@ -71,7 +78,12 @@ const Player = {
       const info = await API.videoInfo(videoId);
       if (info) {
         document.getElementById("video-title").textContent = info.title;
-        document.getElementById("video-channel").textContent = info.channel;
+        const chEl = document.getElementById("video-channel");
+        chEl.textContent = info.channel;
+        chEl.onclick = () => {
+          if (info.channel_id) Grid.loadChannel(info.channel_id);
+          else if (info.channel) Grid.loadChannel(info.channel);
+        };
         document.getElementById("video-views").textContent = this._fmtCount(info.view_count) + " views";
         document.getElementById("video-likes").textContent = this._fmtCount(info.like_count) + " likes";
         document.getElementById("video-date").textContent = this._fmtDate(info.upload_date);
@@ -98,9 +110,12 @@ const Player = {
     this._stopAmbilight();
     document.getElementById("player-section").classList.add("hidden");
     document.getElementById("grid-section").style.display = "";
+    document.getElementById("shorts-section").classList.add("hidden");
+    document.getElementById("channel-section").classList.add("hidden");
     if (this._zenActive) this._toggleZen();
     document.getElementById("filters-panel").classList.add("hidden");
     document.getElementById("audio-panel").classList.add("hidden");
+    document.getElementById("settings-panel").classList.add("hidden");
   },
 
   // ── Controls ─────────────────────────────────────────────────

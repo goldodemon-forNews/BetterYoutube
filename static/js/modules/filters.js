@@ -109,6 +109,7 @@ const Filters = {
   _togglePanel() {
     document.getElementById("filters-panel").classList.toggle("hidden");
     document.getElementById("audio-panel").classList.add("hidden");
+    document.getElementById("settings-panel").classList.add("hidden");
   },
 
   _save() {

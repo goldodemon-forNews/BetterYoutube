@@ -1,6 +1,6 @@
-/* ── CSS Video Filters ───────────────────────────────────────── */
-#video-player.filter-night-vision{filter:brightness(1.6) contrast(1.4) saturate(0.3) hue-rotate(80deg)}
-#video-player.filter-saturate{filter:saturate(2.0) contrast(1.1)}
-#video-player.filter-grayscale{filter:grayscale(1)}
-#video-player.filter-sepia{filter:sepia(1) saturate(1.3) contrast(1.1)}
-#video-player.filter-warm{filter:sepia(0.3) saturate(1.2) brightness(1.05) hue-rotate(-10deg)}
+/* ── Video filter presets ─────────────────────────────────── */
+video.filter-night-vision{filter:brightness(1.8) contrast(1.3) saturate(0.3) hue-rotate(90deg)}
+video.filter-saturate{filter:saturate(2)}
+video.filter-grayscale{filter:grayscale(1)}
+video.filter-sepia{filter:sepia(.9) contrast(1.1)}
+video.filter-warm{filter:sepia(.25) saturate(1.2) brightness(1.05)}

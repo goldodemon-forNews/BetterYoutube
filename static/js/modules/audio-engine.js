@@ -147,6 +147,7 @@ const AudioEngine = {
   _togglePanel() {
     document.getElementById("audio-panel").classList.toggle("hidden");
     document.getElementById("filters-panel").classList.add("hidden");
+    document.getElementById("settings-panel").classList.add("hidden");
   },
 
   _saveSettings() {
