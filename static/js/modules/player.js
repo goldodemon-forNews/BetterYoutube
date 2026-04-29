@@ -63,8 +63,12 @@ const Player = {
         height: "100%",
         playerVars: {
           autoplay: 1,
+          controls: 0,
           rel: 0,
           modestbranding: 1,
+          showinfo: 0,
+          iv_load_policy: 3,
+          disablekb: 1,
           start: startAt,
           enablejsapi: 1,
           origin: window.location.origin,
@@ -181,6 +185,13 @@ const Player = {
     // Play / Pause
     document.getElementById("play-btn").addEventListener("click", () => this._togglePlay());
 
+    // Click on player wrapper to toggle play/pause
+    document.getElementById("player-wrapper").addEventListener("click", (e) => {
+      // Only toggle if clicking the wrapper/iframe area, not a control
+      if (e.target.closest(".extra-controls")) return;
+      this._togglePlay();
+    });
+
     // Volume
     document.getElementById("volume-slider").addEventListener("input", (e) => {
       const vol = parseFloat(e.target.value);
@@ -196,9 +207,15 @@ const Player = {
       else this._yt.mute();
     });
 
-    // Speed
-    document.getElementById("speed-up").addEventListener("click", () => this._changeSpeed(0.25));
-    document.getElementById("speed-down").addEventListener("click", () => this._changeSpeed(-0.25));
+    // Speed — adaptive increments (0.25 below 2x, 0.5 from 2-5x, 1.0 above 5x)
+    document.getElementById("speed-up").addEventListener("click", () => {
+      const step = this._speed >= 5 ? 1 : this._speed >= 2 ? 0.5 : 0.25;
+      this._changeSpeed(step);
+    });
+    document.getElementById("speed-down").addEventListener("click", () => {
+      const step = this._speed > 5 ? 1 : this._speed > 2 ? 0.5 : 0.25;
+      this._changeSpeed(-step);
+    });
     document.getElementById("speed-display").addEventListener("click", () => this._setSpeed(1));
 
     // Fullscreen
@@ -243,15 +260,22 @@ const Player = {
     document.getElementById("mini-play").textContent = playing ? "⏸" : "▶";
   },
 
-  // ── Speed ────────────────────────────────────────────────────
+  // ── Speed (0.25x – 20x) ──────────────────────────────────────
   _changeSpeed(delta) {
-    this._setSpeed(Math.max(0.25, Math.min(2, this._speed + delta)));
+    let newSpeed = this._speed + delta;
+    // Snap to common values to avoid floating point drift
+    newSpeed = Math.round(newSpeed * 100) / 100;
+    this._setSpeed(Math.max(0.25, Math.min(20, newSpeed)));
   },
 
   _setSpeed(s) {
     this._speed = Math.round(s * 100) / 100;
     if (this._yt && typeof this._yt.setPlaybackRate === "function") {
-      this._yt.setPlaybackRate(this._speed);
+      // YouTube API only supports certain rates (0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2)
+      // For rates beyond 2x, we use the closest available rate
+      const available = this._yt.getAvailablePlaybackRates ? this._yt.getAvailablePlaybackRates() : [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+      const maxRate = Math.max(...available);
+      this._yt.setPlaybackRate(Math.min(this._speed, maxRate));
     }
     document.getElementById("speed-display").textContent = this._speed.toFixed(2) + "x";
   },
