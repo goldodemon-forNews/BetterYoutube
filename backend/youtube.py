@@ -123,26 +123,33 @@ def get_personalized_feed():
     if not os.path.exists(_COOKIE_FILE):
         return {"items": [], "signed_in": False}
 
-    try:
-        opts = _add_cookies({**_SEARCH_OPTS})
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            data = ydl.extract_info(
-                "https://www.youtube.com/feed/subscriptions", download=False
-            )
-            if data:
-                entries = data.get("entries", [])
-                all_entries = []
-                for e in entries:
-                    if e and e.get("entries"):
-                        all_entries.extend(e["entries"])
-                    elif e:
-                        all_entries.append(e)
-                items = [_fmt_entry(e) for e in all_entries[:30] if e]
-                if items:
-                    return {"items": items, "signed_in": True}
-    except Exception:
-        pass
+    # Try subscriptions feed
+    for feed_url in [
+        "https://www.youtube.com/feed/subscriptions",
+        "https://www.youtube.com",
+    ]:
+        try:
+            opts = _add_cookies({
+                **_SEARCH_OPTS,
+                "socket_timeout": 10,
+            })
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                data = ydl.extract_info(feed_url, download=False)
+                if data:
+                    entries = data.get("entries", [])
+                    all_entries = []
+                    for e in entries:
+                        if e and e.get("entries"):
+                            all_entries.extend(e["entries"])
+                        elif e:
+                            all_entries.append(e)
+                    items = [_fmt_entry(e) for e in all_entries[:30] if e]
+                    if items:
+                        return {"items": items, "signed_in": True}
+        except Exception:
+            continue
 
+    # If cookies exist but feed failed, still mark as signed in
     return {"items": [], "signed_in": True}
 
 

@@ -24,8 +24,30 @@ const Grid = {
     this._grid.innerHTML = "";
 
     try {
-      const data = await API.search(q);
-      this.render(data.items || []);
+      // Run video search and channel lookup in parallel
+      const [data, channelInfo] = await Promise.allSettled([
+        API.search(q),
+        API.channelInfo(q),
+      ]);
+
+      const items = data.status === "fulfilled" ? (data.value.items || []) : [];
+      const channel = channelInfo.status === "fulfilled" ? channelInfo.value : null;
+
+      // Show channel card at top if found
+      if (channel && channel.name && channel.videos && channel.videos.length > 0) {
+        const channelCard = this._createChannelCard(channel);
+        this._grid.appendChild(channelCard);
+      }
+
+      // Then show video results
+      if (!items.length && (!channel || !channel.videos || !channel.videos.length)) {
+        this._showStatus("No results found.");
+        return;
+      }
+      this._status.style.display = "none";
+      items.forEach(v => {
+        this._grid.appendChild(this._createCard(v));
+      });
     } catch {
       this._showStatus("Search failed. Please try again.");
     }
@@ -33,19 +55,28 @@ const Grid = {
 
   async loadHome() {
     this._showSection("grid");
-    this._showStatus("Loading your feed...");
 
-    // Try personalized feed first
+    // Always load trending first so the page isn't blank
+    this._showStatus("Loading trending videos...");
+    try {
+      const data = await API.trending();
+      const items = data.items || [];
+      if (items.length) {
+        this.render(items);
+      } else {
+        this._showStatus("No videos found.");
+      }
+    } catch {
+      this._showStatus("Failed to load videos.");
+    }
+
+    // Then try personalized feed in background (replaces if successful)
     try {
       const feed = await API.feed();
       if (feed.signed_in && feed.items && feed.items.length) {
         this.render(feed.items);
-        return;
       }
-    } catch { /* fall through */ }
-
-    // Fall back to trending
-    this.loadTrending();
+    } catch { /* ignore — trending is already showing */ }
   },
 
   async loadTrending() {
@@ -98,19 +129,19 @@ const Grid = {
 
   async loadChannel(channelId) {
     this._showSection("channel");
-    const section = document.getElementById("channel-section");
     document.getElementById("channel-name").textContent = "Loading...";
     document.getElementById("channel-subs").textContent = "";
     document.getElementById("channel-desc").textContent = "";
     document.getElementById("channel-videos").innerHTML = "";
+    document.getElementById("channel-avatar").style.display = "none";
 
     try {
       const info = await API.channelInfo(channelId);
-      if (!info) {
+      if (!info || info.error) {
         document.getElementById("channel-name").textContent = "Channel not found";
         return;
       }
-      document.getElementById("channel-name").textContent = info.name;
+      document.getElementById("channel-name").textContent = info.name || channelId;
       document.getElementById("channel-subs").textContent =
         info.subscriber_count ? this._fmtCount(info.subscriber_count) + " subscribers" : "";
       document.getElementById("channel-desc").textContent = info.description || "";
@@ -118,14 +149,19 @@ const Grid = {
       if (info.thumbnail) {
         avatar.src = info.thumbnail;
         avatar.style.display = "";
-      } else {
-        avatar.style.display = "none";
       }
 
       const vGrid = document.getElementById("channel-videos");
       (info.videos || []).forEach(v => {
         vGrid.appendChild(this._createCard(v));
       });
+
+      if (!info.videos || !info.videos.length) {
+        const msg = document.createElement("p");
+        msg.className = "status-msg";
+        msg.textContent = "No videos found for this channel.";
+        vGrid.appendChild(msg);
+      }
     } catch {
       document.getElementById("channel-name").textContent = "Failed to load channel";
     }
@@ -142,6 +178,36 @@ const Grid = {
     items.forEach(v => {
       this._grid.appendChild(this._createCard(v));
     });
+  },
+
+  _createChannelCard(channel) {
+    const card = document.createElement("div");
+    card.className = "channel-result-card";
+    const avatar = channel.thumbnail
+      ? `<img src="${channel.thumbnail}" class="channel-result-avatar" />`
+      : `<div class="channel-result-avatar placeholder"></div>`;
+    const subs = channel.subscriber_count
+      ? this._fmtCount(channel.subscriber_count) + " subscribers"
+      : "";
+    const vidCount = channel.videos ? channel.videos.length + " videos" : "";
+    card.innerHTML = `
+      ${avatar}
+      <div class="channel-result-info">
+        <h3 class="channel-result-name">${this._esc(channel.name)}</h3>
+        <span class="channel-result-subs">${subs}${subs && vidCount ? " · " : ""}${vidCount}</span>
+        <p class="channel-result-desc">${this._esc((channel.description || "").substring(0, 120))}</p>
+      </div>
+      <button class="btn-view-channel">View Channel</button>
+    `;
+    card.querySelector(".btn-view-channel").addEventListener("click", () => {
+      this.loadChannel(channel.id || channel.name);
+    });
+    card.addEventListener("click", (e) => {
+      if (!e.target.closest(".btn-view-channel")) {
+        this.loadChannel(channel.id || channel.name);
+      }
+    });
+    return card;
   },
 
   _createCard(v) {

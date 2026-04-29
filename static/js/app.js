@@ -105,15 +105,24 @@ document.addEventListener("DOMContentLoaded", () => {
     signinModal.classList.toggle("hidden");
   });
 
+  function markSignedIn() {
+    signinLabel.textContent = "Signed In";
+    signinBtn.classList.add("signed-in");
+    signoutBtn.classList.remove("hidden");
+    signinStatus.textContent = "Cookies saved. Your personalized feed will appear on the Home tab if YouTube accepts the cookies.";
+    signinStatus.style.color = "#4caf50";
+  }
+
+  function markSignedOut() {
+    signinLabel.textContent = "Sign In";
+    signinBtn.classList.remove("signed-in");
+    signoutBtn.classList.add("hidden");
+    signinStatus.textContent = "";
+  }
+
   // Check auth status on load
   API.authStatus().then(data => {
-    if (data.signed_in) {
-      signinLabel.textContent = "Signed In";
-      signinBtn.classList.add("signed-in");
-      signoutBtn.classList.remove("hidden");
-      signinStatus.textContent = "You are signed in. Your personalized feed is active.";
-      signinStatus.style.color = "#4caf50";
-    }
+    if (data.signed_in) markSignedIn();
   }).catch(() => {});
 
   // Submit cookies
@@ -124,17 +133,24 @@ document.addEventListener("DOMContentLoaded", () => {
       signinStatus.style.color = "#ff4444";
       return;
     }
+
+    // Basic validation
+    if (!cookies.includes("youtube.com") && !cookies.includes(".youtube.com")) {
+      signinStatus.textContent = "These don't look like YouTube cookies. Make sure you export cookies from youtube.com.";
+      signinStatus.style.color = "#ff8c00";
+    }
+
     try {
-      signinStatus.textContent = "Signing in...";
+      signinStatus.textContent = "Saving cookies...";
+      signinStatus.style.color = "#aaa";
       await API.signIn(cookies);
-      signinStatus.textContent = "Signed in successfully! Reload to see your feed.";
-      signinStatus.style.color = "#4caf50";
-      signinLabel.textContent = "Signed In";
-      signinBtn.classList.add("signed-in");
-      signoutBtn.classList.remove("hidden");
+      markSignedIn();
+      // Reload home to try personalized feed
       Grid.loadHome();
+      // Close modal after brief delay
+      setTimeout(() => signinModal.classList.add("hidden"), 1500);
     } catch {
-      signinStatus.textContent = "Sign in failed. Check your cookies.";
+      signinStatus.textContent = "Failed to save cookies. Try again.";
       signinStatus.style.color = "#ff4444";
     }
   });
@@ -142,9 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Sign out
   signoutBtn.addEventListener("click", async () => {
     await API.signOut();
-    signinLabel.textContent = "Sign In";
-    signinBtn.classList.remove("signed-in");
-    signoutBtn.classList.add("hidden");
+    markSignedOut();
     signinStatus.textContent = "Signed out.";
     signinStatus.style.color = "#aaa";
     document.getElementById("cookie-input").value = "";
