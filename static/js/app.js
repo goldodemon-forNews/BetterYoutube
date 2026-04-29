@@ -2,14 +2,13 @@
  * BetterYouTube — main application entry point.
  */
 document.addEventListener("DOMContentLoaded", () => {
-  const video = document.getElementById("video-player");
-
   // Initialize modules
   Player.init();
   Grid.init();
-  Filters.init(video);
-  AudioEngine.init(video);
-  Capture.init(video);
+  // Pass null since we use YouTube embed — panel toggles still work
+  Filters.init(null);
+  AudioEngine.init(null);
+  Capture.init(null);
 
   // ── Load home feed ──────────────────────────────────────────
   Grid.loadHome();

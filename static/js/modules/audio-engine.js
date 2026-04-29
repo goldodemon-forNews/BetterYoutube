@@ -21,6 +21,11 @@ const AudioEngine = {
 
   init(videoEl) {
     this._video = videoEl;
+    if (!videoEl) {
+      const btn = document.getElementById("audio-btn");
+      if (btn) btn.addEventListener("click", () => this._togglePanel());
+      return;
+    }
     this._buildEQSliders();
 
     const s = Store.getSettings();

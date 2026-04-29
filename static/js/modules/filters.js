@@ -10,6 +10,12 @@ const Filters = {
 
   init(videoEl) {
     this._video = videoEl;
+    if (!videoEl) {
+      // Still bind panel toggle even without a video element
+      const btn = document.getElementById("filters-btn");
+      if (btn) btn.addEventListener("click", () => this._togglePanel());
+      return;
+    }
     const s = Store.getSettings();
     this._current = s.filter || "none";
     this._brightness = s.brightness ?? 100;

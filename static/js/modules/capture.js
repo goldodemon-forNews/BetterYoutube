@@ -6,6 +6,7 @@ const Capture = {
 
   init(videoEl) {
     this._video = videoEl;
+    if (!videoEl) return;
     document.getElementById("screenshot-btn").addEventListener("click", () => this.screenshot());
     document.getElementById("gif-btn").addEventListener("click", () => this._openGifModal());
     document.getElementById("gif-capture").addEventListener("click", () => this._captureGif());

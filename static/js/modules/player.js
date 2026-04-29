@@ -1,108 +1,82 @@
 /**
- * Player — custom video player with advanced controls.
+ * Player — YouTube embed-based player with custom UI controls.
  *
- * Features: speed control (0.25–5x), frame stepping, A-B loop,
- * auto-resume, bandwidth saver, PiP, ambilight, bookmarks,
- * volume memory per channel, zen mode.
+ * Uses YouTube IFrame Player API for reliable playback while keeping
+ * the BetterYouTube UI: speed control, zen mode, bookmarks, etc.
  */
 const Player = {
-  _video: null,
+  _yt: null,           // YouTube IFrame Player instance
   _videoId: null,
   _channelId: null,
   _speed: 1,
-  _abA: null,
-  _abB: null,
-  _abActive: false,
-  _ambilightActive: false,
-  _ambilightRAF: null,
   _zenActive: false,
-  _chapters: [],
+  _duration: 0,
+  _timeUpdateInterval: null,
   _resumeInterval: null,
   _controlsTimeout: null,
-  _duration: 0,
 
   init() {
-    this._video = document.getElementById("video-player");
-    this._bindControls();
-    this._bindProgress();
-    this._bindKeyboard();
-    this._bindBandwidthSaver();
-  },
+    // Load YouTube IFrame API
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
 
-  _useEmbed: false,
+    this._bindControls();
+    this._bindKeyboard();
+  },
 
   async play(videoId, channelId) {
     this._videoId = videoId;
     this._channelId = channelId || "";
-    this._useEmbed = false;
 
     document.getElementById("player-section").classList.remove("hidden");
     document.getElementById("grid-section").style.display = "none";
     document.getElementById("shorts-section").classList.add("hidden");
     document.getElementById("channel-section").classList.add("hidden");
 
-    // Remove any leftover embed iframe
-    const oldEmbed = document.getElementById("yt-embed");
-    if (oldEmbed) oldEmbed.remove();
-    this._video.style.display = "";
-
     // Show loading
     document.getElementById("player-loading").classList.remove("hidden");
 
-    // Step 1: Pre-resolve the stream URL (caches it on backend)
-    let streamOk = false;
-    try {
-      const stream = await API.streamUrl(videoId, 720);
-      if (stream && !stream.error) {
-        streamOk = true;
-      }
-    } catch { /* stream unavailable */ }
+    // Auto-resume: get saved time
+    const savedTime = Store.getTimestamp(videoId);
+    const startAt = savedTime > 2 ? Math.floor(savedTime) : 0;
 
-    if (streamOk) {
-      // Step 2: Load via proxy (uses cached URL, much faster)
-      const proxyUrl = API.proxyUrl(videoId, 720);
-      this._video.src = proxyUrl;
-      this._video.load();
+    // Create or reuse the YouTube player
+    const container = document.getElementById("yt-player-container");
 
-      // Handle success
-      this._video.addEventListener("canplay", () => {
-        document.getElementById("player-loading").classList.add("hidden");
-      }, { once: true });
-
-      // Handle failure — fall back to YouTube embed
-      this._video.addEventListener("error", () => {
-        this._fallbackToEmbed(videoId);
-      }, { once: true });
-
-      // Timeout — if nothing plays within 8 seconds, use embed
-      const timeout = setTimeout(() => {
-        if (this._video.readyState < 2 && this._videoId === videoId) {
-          this._fallbackToEmbed(videoId);
-        }
-      }, 8000);
-
-      this._video.addEventListener("canplay", () => clearTimeout(timeout), { once: true });
-
-      // Auto-resume
-      const saved = Store.getTimestamp(videoId);
-      if (saved > 2) {
-        this._video.currentTime = saved;
-      }
-
-      // Channel volume memory
-      const chVol = Store.getChannelVolume(channelId);
-      if (chVol !== null) {
-        this._video.volume = chVol;
-        document.getElementById("volume-slider").value = chVol;
-      }
-
-      this._video.play().catch(() => {});
+    if (this._yt && typeof this._yt.loadVideoById === "function") {
+      this._yt.loadVideoById({ videoId, startSeconds: startAt });
     } else {
-      // No stream available — go straight to YouTube embed
-      this._fallbackToEmbed(videoId);
+      // Clear any previous player
+      container.innerHTML = '<div id="yt-player"></div>';
+
+      // Wait for API to be ready
+      const waitForAPI = () => new Promise((resolve) => {
+        if (window.YT && window.YT.Player) return resolve();
+        window.onYouTubeIframeAPIReady = resolve;
+      });
+      await waitForAPI();
+
+      this._yt = new YT.Player("yt-player", {
+        videoId,
+        width: "100%",
+        height: "100%",
+        playerVars: {
+          autoplay: 1,
+          rel: 0,
+          modestbranding: 1,
+          start: startAt,
+          enablejsapi: 1,
+          origin: window.location.origin,
+        },
+        events: {
+          onReady: (e) => this._onPlayerReady(e),
+          onStateChange: (e) => this._onStateChange(e),
+        },
+      });
     }
 
-    // Fetch video info
+    // Fetch and display video info
     try {
       const info = await API.videoInfo(videoId);
       if (info) {
@@ -113,55 +87,84 @@ const Player = {
           if (info.channel_id) Grid.loadChannel(info.channel_id);
           else if (info.channel) Grid.loadChannel(info.channel);
         };
-        document.getElementById("video-views").textContent = this._fmtCount(info.view_count) + " views";
-        document.getElementById("video-likes").textContent = this._fmtCount(info.like_count) + " likes";
-        document.getElementById("video-date").textContent = this._fmtDate(info.upload_date);
-        document.getElementById("video-description").textContent = info.description;
-        this._chapters = info.chapters || [];
-        this._renderChapters();
+        document.getElementById("video-views").textContent =
+          this._fmtCount(info.view_count) + " views";
+        document.getElementById("video-likes").textContent =
+          this._fmtCount(info.like_count) + " likes";
+        document.getElementById("video-date").textContent =
+          this._fmtDate(info.upload_date);
+        document.getElementById("video-description").textContent =
+          info.description;
       }
     } catch { /* info is supplementary */ }
 
     this._renderBookmarks();
     this._startResumeTimer();
 
-    // Show mini-player info
+    // Mini-player info
     document.getElementById("mini-title").textContent =
       document.getElementById("video-title").textContent;
     document.getElementById("mini-channel").textContent =
       document.getElementById("video-channel").textContent;
   },
 
-  _fallbackToEmbed(videoId) {
-    this._useEmbed = true;
+  _onPlayerReady(event) {
     document.getElementById("player-loading").classList.add("hidden");
-    // Hide native video, show YouTube embed iframe
-    this._video.pause();
-    this._video.removeAttribute("src");
-    this._video.style.display = "none";
 
-    const wrapper = document.getElementById("player-wrapper");
-    let iframe = document.getElementById("yt-embed");
-    if (!iframe) {
-      iframe = document.createElement("iframe");
-      iframe.id = "yt-embed";
-      iframe.style.cssText = "width:100%;height:100%;border:none;position:absolute;inset:0;z-index:2;border-radius:12px";
-      iframe.setAttribute("allowfullscreen", "");
-      iframe.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture");
-      wrapper.appendChild(iframe);
+    // Restore volume from channel memory
+    const chVol = Store.getChannelVolume(this._channelId);
+    if (chVol !== null) {
+      event.target.setVolume(chVol * 100);
+      document.getElementById("volume-slider").value = chVol;
     }
-    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+
+    // Start tracking time for UI updates
+    this._startTimeUpdates();
+  },
+
+  _onStateChange(event) {
+    const state = event.data;
+
+    if (state === YT.PlayerState.PLAYING) {
+      document.getElementById("player-loading").classList.add("hidden");
+      this._updatePlayIcon(true);
+      this._duration = this._yt.getDuration();
+      document.getElementById("time-duration").textContent =
+        this._fmtTime(this._duration);
+      this._startTimeUpdates();
+    } else if (state === YT.PlayerState.PAUSED) {
+      this._updatePlayIcon(false);
+    } else if (state === YT.PlayerState.BUFFERING) {
+      document.getElementById("player-loading").classList.remove("hidden");
+    } else if (state === YT.PlayerState.ENDED) {
+      this._updatePlayIcon(false);
+    }
+  },
+
+  _startTimeUpdates() {
+    clearInterval(this._timeUpdateInterval);
+    this._timeUpdateInterval = setInterval(() => {
+      if (!this._yt || typeof this._yt.getCurrentTime !== "function") return;
+      const t = this._yt.getCurrentTime();
+      const d = this._duration || this._yt.getDuration() || 1;
+      const pct = (t / d) * 100;
+
+      document.getElementById("progress-played").style.width = pct + "%";
+      document.getElementById("progress-handle").style.left = pct + "%";
+      document.getElementById("time-current").textContent = this._fmtTime(t);
+
+      // Update buffered
+      const buf = this._yt.getVideoLoadedFraction();
+      document.getElementById("progress-buffered").style.width = (buf * 100) + "%";
+    }, 250);
   },
 
   goHome() {
     this._saveCurrentTime();
-    this._video.pause();
-    this._video.src = "";
-    this._stopAmbilight();
-    // Remove embed iframe if present
-    const embed = document.getElementById("yt-embed");
-    if (embed) embed.remove();
-    this._video.style.display = "";
+    if (this._yt && typeof this._yt.pauseVideo === "function") {
+      this._yt.pauseVideo();
+    }
+    clearInterval(this._timeUpdateInterval);
 
     document.getElementById("player-section").classList.add("hidden");
     document.getElementById("grid-section").style.display = "";
@@ -175,29 +178,22 @@ const Player = {
 
   // ── Controls ─────────────────────────────────────────────────
   _bindControls() {
-    const v = this._video;
-
     // Play / Pause
     document.getElementById("play-btn").addEventListener("click", () => this._togglePlay());
-    this._video.addEventListener("click", () => this._togglePlay());
-
-    v.addEventListener("play", () => this._updatePlayIcon(true));
-    v.addEventListener("pause", () => this._updatePlayIcon(false));
-    v.addEventListener("timeupdate", () => this._onTimeUpdate());
-    v.addEventListener("loadedmetadata", () => {
-      this._duration = v.duration;
-      document.getElementById("time-duration").textContent = this._fmtTime(v.duration);
-    });
-    v.addEventListener("progress", () => this._updateBuffered());
 
     // Volume
     document.getElementById("volume-slider").addEventListener("input", (e) => {
-      v.volume = parseFloat(e.target.value);
-      v.muted = false;
-      Store.saveChannelVolume(this._channelId, v.volume);
+      const vol = parseFloat(e.target.value);
+      if (this._yt && typeof this._yt.setVolume === "function") {
+        this._yt.setVolume(vol * 100);
+        this._yt.unMute();
+      }
+      Store.saveChannelVolume(this._channelId, vol);
     });
     document.getElementById("mute-btn").addEventListener("click", () => {
-      v.muted = !v.muted;
+      if (!this._yt) return;
+      if (this._yt.isMuted()) this._yt.unMute();
+      else this._yt.mute();
     });
 
     // Speed
@@ -205,24 +201,11 @@ const Player = {
     document.getElementById("speed-down").addEventListener("click", () => this._changeSpeed(-0.25));
     document.getElementById("speed-display").addEventListener("click", () => this._setSpeed(1));
 
-    // Frame stepping
-    document.getElementById("prev-frame-btn").addEventListener("click", () => this._frameStep(-1));
-    document.getElementById("next-frame-btn").addEventListener("click", () => this._frameStep(1));
-
-    // A-B loop
-    document.getElementById("ab-loop-btn").addEventListener("click", () => this._toggleABLoop());
-
     // Fullscreen
     document.getElementById("fullscreen-btn").addEventListener("click", () => this._toggleFullscreen());
 
-    // PiP
-    document.getElementById("pip-btn").addEventListener("click", () => this._togglePiP());
-
     // Zen
     document.getElementById("zen-btn").addEventListener("click", () => this._toggleZen());
-
-    // Ambilight
-    document.getElementById("ambilight-btn").addEventListener("click", () => this._toggleAmbilight());
 
     // Bookmarks
     document.getElementById("bookmark-btn").addEventListener("click", () => this._addBookmark());
@@ -240,21 +223,16 @@ const Player = {
       document.getElementById("mini-player").classList.add("hidden");
     });
     document.getElementById("mini-play").addEventListener("click", () => this._togglePlay());
-
-    // Show/hide controls on mouse movement
-    const wrapper = document.getElementById("player-wrapper");
-    wrapper.addEventListener("mousemove", () => {
-      wrapper.classList.add("show-controls");
-      clearTimeout(this._controlsTimeout);
-      this._controlsTimeout = setTimeout(() => {
-        if (!this._video.paused) wrapper.classList.remove("show-controls");
-      }, 3000);
-    });
   },
 
   _togglePlay() {
-    if (this._video.paused) this._video.play().catch(() => {});
-    else this._video.pause();
+    if (!this._yt) return;
+    const state = this._yt.getPlayerState();
+    if (state === YT.PlayerState.PLAYING) {
+      this._yt.pauseVideo();
+    } else {
+      this._yt.playVideo();
+    }
   },
 
   _updatePlayIcon(playing) {
@@ -266,123 +244,27 @@ const Player = {
   },
 
   // ── Speed ────────────────────────────────────────────────────
-  _changeSpeed(delta, fine = false) {
-    const step = fine ? 0.05 : delta;
-    this._setSpeed(Math.max(0.25, Math.min(5, this._speed + step)));
+  _changeSpeed(delta) {
+    this._setSpeed(Math.max(0.25, Math.min(2, this._speed + delta)));
   },
 
   _setSpeed(s) {
     this._speed = Math.round(s * 100) / 100;
-    this._video.playbackRate = this._speed;
-    document.getElementById("speed-display").textContent = this._speed.toFixed(2) + "x";
-  },
-
-  // ── Frame stepping ───────────────────────────────────────────
-  _frameStep(dir) {
-    this._video.pause();
-    // ~30fps assumed
-    this._video.currentTime += dir * (1 / 30);
-  },
-
-  // ── A-B Loop ─────────────────────────────────────────────────
-  _toggleABLoop() {
-    const btn = document.getElementById("ab-loop-btn");
-    const region = document.getElementById("progress-ab-region");
-
-    if (this._abA === null) {
-      // Set point A
-      this._abA = this._video.currentTime;
-      btn.classList.add("active");
-      btn.title = "Set point B";
-    } else if (this._abB === null) {
-      // Set point B
-      this._abB = this._video.currentTime;
-      if (this._abB < this._abA) [this._abA, this._abB] = [this._abB, this._abA];
-      this._abActive = true;
-      btn.title = "Clear A-B loop";
-      // Show region
-      const d = this._duration || 1;
-      region.style.left = (this._abA / d * 100) + "%";
-      region.style.width = ((this._abB - this._abA) / d * 100) + "%";
-      region.style.display = "block";
-      this._video.currentTime = this._abA;
-    } else {
-      // Clear
-      this._abA = null;
-      this._abB = null;
-      this._abActive = false;
-      btn.classList.remove("active");
-      btn.title = "A-B Loop";
-      region.style.display = "none";
+    if (this._yt && typeof this._yt.setPlaybackRate === "function") {
+      this._yt.setPlaybackRate(this._speed);
     }
+    document.getElementById("speed-display").textContent = this._speed.toFixed(2) + "x";
   },
 
   // ── Progress ─────────────────────────────────────────────────
   _bindProgress() {
-    const container = document.getElementById("progress-container");
-    const tooltip = document.getElementById("progress-tooltip");
-    let seeking = false;
-
-    container.addEventListener("mousemove", (e) => {
-      const rect = container.getBoundingClientRect();
-      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const time = pct * (this._duration || 0);
-      tooltip.textContent = this._fmtTime(time);
-      tooltip.style.left = (pct * 100) + "%";
-    });
-
-    container.addEventListener("mousedown", (e) => {
-      seeking = true;
-      this._seekTo(e, container);
-    });
-    document.addEventListener("mousemove", (e) => {
-      if (seeking) this._seekTo(e, container);
-    });
-    document.addEventListener("mouseup", () => { seeking = false; });
+    // Handled in init via _bindControls
   },
 
-  _seekTo(e, container) {
-    const rect = container.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    this._video.currentTime = pct * (this._duration || 0);
-  },
-
-  _onTimeUpdate() {
-    const t = this._video.currentTime;
-    const d = this._duration || 1;
-    const pct = (t / d) * 100;
-
-    document.getElementById("progress-played").style.width = pct + "%";
-    document.getElementById("progress-handle").style.left = pct + "%";
-    document.getElementById("time-current").textContent = this._fmtTime(t);
-
-    // A-B loop enforcement
-    if (this._abActive && this._abB !== null && t >= this._abB) {
-      this._video.currentTime = this._abA;
-    }
-  },
-
-  _updateBuffered() {
-    const b = this._video.buffered;
-    if (b.length) {
-      const end = b.end(b.length - 1);
-      document.getElementById("progress-buffered").style.width =
-        ((end / (this._duration || 1)) * 100) + "%";
-    }
-  },
-
-  // ── Chapters ─────────────────────────────────────────────────
-  _renderChapters() {
-    const container = document.getElementById("chapter-markers");
-    container.innerHTML = "";
-    if (!this._chapters.length || !this._duration) return;
-    this._chapters.forEach(ch => {
-      const marker = document.createElement("div");
-      marker.className = "chapter-marker";
-      marker.style.left = ((ch.start / this._duration) * 100) + "%";
-      marker.title = ch.title;
-      container.appendChild(marker);
-    });
+  _seekTo(pct) {
+    if (!this._yt) return;
+    const d = this._duration || this._yt.getDuration() || 0;
+    this._yt.seekTo(pct * d, true);
   },
 
   // ── Fullscreen ───────────────────────────────────────────────
@@ -392,14 +274,6 @@ const Player = {
     else el.requestFullscreen().catch(() => {});
   },
 
-  // ── PiP ──────────────────────────────────────────────────────
-  async _togglePiP() {
-    try {
-      if (document.pictureInPictureElement) await document.exitPictureInPicture();
-      else await this._video.requestPictureInPicture();
-    } catch { /* not supported */ }
-  },
-
   // ── Zen Mode ─────────────────────────────────────────────────
   _toggleZen() {
     this._zenActive = !this._zenActive;
@@ -407,39 +281,10 @@ const Player = {
     document.getElementById("zen-btn").classList.toggle("active", this._zenActive);
   },
 
-  // ── Ambilight ────────────────────────────────────────────────
-  _toggleAmbilight() {
-    this._ambilightActive = !this._ambilightActive;
-    document.querySelector(".player-area").classList.toggle("ambilight-active", this._ambilightActive);
-    document.getElementById("ambilight-btn").classList.toggle("active", this._ambilightActive);
-
-    if (this._ambilightActive) this._startAmbilight();
-    else this._stopAmbilight();
-  },
-
-  _startAmbilight() {
-    const canvas = document.getElementById("ambilight-canvas");
-    const ctx = canvas.getContext("2d");
-
-    const draw = () => {
-      if (!this._ambilightActive) return;
-      canvas.width = this._video.videoWidth || 320;
-      canvas.height = this._video.videoHeight || 180;
-      ctx.drawImage(this._video, 0, 0, canvas.width, canvas.height);
-      this._ambilightRAF = requestAnimationFrame(draw);
-    };
-    draw();
-  },
-
-  _stopAmbilight() {
-    if (this._ambilightRAF) cancelAnimationFrame(this._ambilightRAF);
-    this._ambilightRAF = null;
-  },
-
   // ── Bookmarks ────────────────────────────────────────────────
   _addBookmark() {
-    if (!this._videoId) return;
-    const time = this._video.currentTime;
+    if (!this._videoId || !this._yt) return;
+    const time = this._yt.getCurrentTime();
     const label = this._fmtTime(time);
     Store.addBookmark(this._videoId, time, label);
     this._renderBookmarks();
@@ -462,7 +307,7 @@ const Player = {
       item.className = "bookmark-item";
       item.innerHTML = `<span>${bk.label}</span><span class="bk-remove" data-i="${i}">&times;</span>`;
       item.querySelector("span").addEventListener("click", () => {
-        this._video.currentTime = bk.time;
+        if (this._yt) this._yt.seekTo(bk.time, true);
       });
       item.querySelector(".bk-remove").addEventListener("click", (e) => {
         e.stopPropagation();
@@ -480,34 +325,17 @@ const Player = {
   },
 
   _saveCurrentTime() {
-    if (this._videoId && this._video.currentTime > 2) {
-      Store.saveTimestamp(this._videoId, this._video.currentTime);
+    if (this._videoId && this._yt && typeof this._yt.getCurrentTime === "function") {
+      const t = this._yt.getCurrentTime();
+      if (t > 2) Store.saveTimestamp(this._videoId, t);
     }
-  },
-
-  // ── Bandwidth Saver ──────────────────────────────────────────
-  _bindBandwidthSaver() {
-    document.addEventListener("visibilitychange", () => {
-      const s = Store.getSettings();
-      if (!s.bandwidthSaver) return;
-      // When tab becomes hidden, we could downscale; when visible, upscale.
-      // Since we're using direct stream URLs, we reload at different quality.
-      // For now, just pause/resume to save bandwidth.
-      if (document.hidden && !this._video.paused) {
-        // Keep playing but note the state
-        this._wasPlaying = true;
-      } else if (!document.hidden && this._wasPlaying) {
-        this._wasPlaying = false;
-      }
-    });
   },
 
   // ── Keyboard ─────────────────────────────────────────────────
   _bindKeyboard() {
     document.addEventListener("keydown", (e) => {
-      // Ignore if typing in input
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-      if (!this._videoId) return;
+      if (!this._videoId || !this._yt) return;
 
       const shift = e.shiftKey;
       switch (e.key) {
@@ -517,66 +345,72 @@ const Player = {
           break;
         case "ArrowLeft":
           e.preventDefault();
-          if (shift) this._frameStep(-1);
-          else this._video.currentTime -= 5;
+          this._yt.seekTo(this._yt.getCurrentTime() - (shift ? 1 : 5), true);
           break;
         case "ArrowRight":
           e.preventDefault();
-          if (shift) this._frameStep(1);
-          else this._video.currentTime += 5;
+          this._yt.seekTo(this._yt.getCurrentTime() + (shift ? 1 : 5), true);
           break;
         case "ArrowUp":
           e.preventDefault();
-          this._video.volume = Math.min(1, this._video.volume + 0.05);
-          document.getElementById("volume-slider").value = this._video.volume;
+          this._yt.setVolume(Math.min(100, this._yt.getVolume() + 5));
+          document.getElementById("volume-slider").value = this._yt.getVolume() / 100;
           break;
         case "ArrowDown":
           e.preventDefault();
-          this._video.volume = Math.max(0, this._video.volume - 0.05);
-          document.getElementById("volume-slider").value = this._video.volume;
+          this._yt.setVolume(Math.max(0, this._yt.getVolume() - 5));
+          document.getElementById("volume-slider").value = this._yt.getVolume() / 100;
           break;
-        case "j": this._video.currentTime -= 10; break;
-        case "l": this._video.currentTime += 10; break;
+        case "j": this._yt.seekTo(this._yt.getCurrentTime() - 10, true); break;
+        case "l": this._yt.seekTo(this._yt.getCurrentTime() + 10, true); break;
         case "m":
         case "M":
-          this._video.muted = !this._video.muted;
+          if (this._yt.isMuted()) this._yt.unMute();
+          else this._yt.mute();
           break;
         case "f":
         case "F":
           this._toggleFullscreen();
           break;
-        case "p":
-          this._togglePiP();
-          break;
         case "<":
         case ",":
-          this._changeSpeed(shift ? -0.05 : -0.25, shift);
+          this._changeSpeed(-0.25);
           break;
         case ">":
         case ".":
-          this._changeSpeed(shift ? 0.05 : 0.25, shift);
-          break;
-        case "s":
-        case "S":
-          Capture.screenshot();
-          break;
-        case "a":
-        case "A":
-          this._toggleABLoop();
+          this._changeSpeed(0.25);
           break;
         case "z":
         case "Z":
           this._toggleZen();
-          break;
-        case "b":
-        case "B":
-          this._toggleAmbilight();
           break;
         case "?":
           document.getElementById("shortcuts-modal").classList.toggle("hidden");
           break;
       }
     });
+
+    // Progress bar clicking
+    const container = document.getElementById("progress-container");
+    const tooltip = document.getElementById("progress-tooltip");
+
+    container.addEventListener("mousemove", (e) => {
+      const rect = container.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const time = pct * (this._duration || 0);
+      tooltip.textContent = this._fmtTime(time);
+      tooltip.style.left = (pct * 100) + "%";
+    });
+
+    let seeking = false;
+    const doSeek = (e) => {
+      const rect = container.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      this._seekTo(pct);
+    };
+    container.addEventListener("mousedown", (e) => { seeking = true; doSeek(e); });
+    document.addEventListener("mousemove", (e) => { if (seeking) doSeek(e); });
+    document.addEventListener("mouseup", () => { seeking = false; });
   },
 
   // ── Formatters ───────────────────────────────────────────────
