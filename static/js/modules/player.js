@@ -29,31 +29,59 @@ const Player = {
     this._bindBandwidthSaver();
   },
 
+  _useEmbed: false,
+
   async play(videoId, channelId) {
     this._videoId = videoId;
     this._channelId = channelId || "";
+    this._useEmbed = false;
 
     document.getElementById("player-section").classList.remove("hidden");
     document.getElementById("grid-section").style.display = "none";
     document.getElementById("shorts-section").classList.add("hidden");
     document.getElementById("channel-section").classList.add("hidden");
 
+    // Remove any leftover embed iframe
+    const oldEmbed = document.getElementById("yt-embed");
+    if (oldEmbed) oldEmbed.remove();
+    this._video.style.display = "";
+
     // Show loading
     document.getElementById("player-loading").classList.remove("hidden");
 
-    // Use proxy URL for playback (solves CORS issues)
+    // Step 1: Pre-resolve the stream URL (caches it on backend)
+    let streamOk = false;
     try {
+      const stream = await API.streamUrl(videoId, 720);
+      if (stream && !stream.error) {
+        streamOk = true;
+      }
+    } catch { /* stream unavailable */ }
+
+    if (streamOk) {
+      // Step 2: Load via proxy (uses cached URL, much faster)
       const proxyUrl = API.proxyUrl(videoId, 720);
       this._video.src = proxyUrl;
       this._video.load();
 
+      // Handle success
       this._video.addEventListener("canplay", () => {
         document.getElementById("player-loading").classList.add("hidden");
       }, { once: true });
 
+      // Handle failure — fall back to YouTube embed
       this._video.addEventListener("error", () => {
-        document.getElementById("player-loading").classList.add("hidden");
+        this._fallbackToEmbed(videoId);
       }, { once: true });
+
+      // Timeout — if nothing plays within 8 seconds, use embed
+      const timeout = setTimeout(() => {
+        if (this._video.readyState < 2 && this._videoId === videoId) {
+          this._fallbackToEmbed(videoId);
+        }
+      }, 8000);
+
+      this._video.addEventListener("canplay", () => clearTimeout(timeout), { once: true });
 
       // Auto-resume
       const saved = Store.getTimestamp(videoId);
@@ -69,8 +97,9 @@ const Player = {
       }
 
       this._video.play().catch(() => {});
-    } catch {
-      document.getElementById("player-loading").classList.add("hidden");
+    } else {
+      // No stream available — go straight to YouTube embed
+      this._fallbackToEmbed(videoId);
     }
 
     // Fetch video info
@@ -103,11 +132,37 @@ const Player = {
       document.getElementById("video-channel").textContent;
   },
 
+  _fallbackToEmbed(videoId) {
+    this._useEmbed = true;
+    document.getElementById("player-loading").classList.add("hidden");
+    // Hide native video, show YouTube embed iframe
+    this._video.pause();
+    this._video.removeAttribute("src");
+    this._video.style.display = "none";
+
+    const wrapper = document.getElementById("player-wrapper");
+    let iframe = document.getElementById("yt-embed");
+    if (!iframe) {
+      iframe = document.createElement("iframe");
+      iframe.id = "yt-embed";
+      iframe.style.cssText = "width:100%;height:100%;border:none;position:absolute;inset:0;z-index:2;border-radius:12px";
+      iframe.setAttribute("allowfullscreen", "");
+      iframe.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture");
+      wrapper.appendChild(iframe);
+    }
+    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+  },
+
   goHome() {
     this._saveCurrentTime();
     this._video.pause();
     this._video.src = "";
     this._stopAmbilight();
+    // Remove embed iframe if present
+    const embed = document.getElementById("yt-embed");
+    if (embed) embed.remove();
+    this._video.style.display = "";
+
     document.getElementById("player-section").classList.add("hidden");
     document.getElementById("grid-section").style.display = "";
     document.getElementById("shorts-section").classList.add("hidden");

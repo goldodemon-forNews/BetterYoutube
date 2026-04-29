@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import socket
+import time
 
 import requests as http_requests
 from flask import Flask, Response, jsonify, request, send_from_directory
@@ -32,6 +33,36 @@ def _find_free_port():
 
 ROOT_DIR = _get_root_dir()
 STATIC_DIR = os.path.join(ROOT_DIR, "static")
+
+# Cache resolved stream URLs (video_id → {url, headers, resolved_at})
+_stream_cache = {}
+_CACHE_TTL = 300  # 5 minutes
+
+
+def _get_cached_stream(video_id, height):
+    """Get stream URL, using cache if available."""
+    key = f"{video_id}:{height}"
+    cached = _stream_cache.get(key)
+    if cached and (time.time() - cached["resolved_at"]) < _CACHE_TTL:
+        return cached
+
+    result = get_stream_url(video_id, height)
+    if result and result.get("url"):
+        entry = {
+            "url": result["url"],
+            "http_headers": result.get("http_headers", {}),
+            "height": result.get("height", 0),
+            "ext": result.get("ext", ""),
+            "resolved_at": time.time(),
+        }
+        _stream_cache[key] = entry
+        # Clean old cache entries
+        cutoff = time.time() - _CACHE_TTL
+        for k in list(_stream_cache.keys()):
+            if _stream_cache[k]["resolved_at"] < cutoff:
+                del _stream_cache[k]
+        return entry
+    return None
 
 
 def create_app():
@@ -83,25 +114,29 @@ def create_app():
             return jsonify({"error": "not found"}), 404
         return jsonify(info)
 
-    # ── Stream URL ────────────────────────────────────────────────
+    # ── Stream URL (returns the direct URL) ───────────────────────
     @app.route("/api/stream/<video_id>")
     def api_stream(video_id):
         height = request.args.get("h", 1080, type=int)
-        result = get_stream_url(video_id, height)
+        result = _get_cached_stream(video_id, height)
         if not result:
             return jsonify({"error": "stream unavailable"}), 404
-        return jsonify(result)
+        return jsonify({
+            "url": result["url"],
+            "height": result.get("height", 0),
+            "ext": result.get("ext", ""),
+        })
 
-    # ── Video proxy (solves CORS / direct playback issues) ────────
+    # ── Video proxy (streams through backend for CORS) ────────────
     @app.route("/api/proxy/<video_id>")
     def api_proxy(video_id):
         height = request.args.get("h", 720, type=int)
-        result = get_stream_url(video_id, height)
-        if not result or not result.get("url"):
+        cached = _get_cached_stream(video_id, height)
+        if not cached:
             return Response("Stream not available", status=404)
 
-        stream_url = result["url"]
-        headers = result.get("http_headers", {})
+        stream_url = cached["url"]
+        headers = dict(cached.get("http_headers", {}))
 
         # Forward range requests for seeking support
         range_header = request.headers.get("Range")
@@ -109,7 +144,9 @@ def create_app():
             headers["Range"] = range_header
 
         try:
-            resp = http_requests.get(stream_url, headers=headers, stream=True, timeout=30)
+            resp = http_requests.get(
+                stream_url, headers=headers, stream=True, timeout=30
+            )
 
             excluded = {"content-encoding", "transfer-encoding", "connection"}
             response_headers = {
@@ -161,7 +198,11 @@ def run():
     app = create_app()
 
     def start_server():
-        app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
+        # threaded=True so proxy streaming doesn't block other requests
+        app.run(
+            host="127.0.0.1", port=port,
+            debug=False, use_reloader=False, threaded=True,
+        )
 
     server_thread = threading.Thread(target=start_server, daemon=True)
     server_thread.start()
